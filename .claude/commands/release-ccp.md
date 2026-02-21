@@ -29,7 +29,7 @@ For each open PR, determine ownership:
 
 | Type | How to Identify | Action |
 |------|----------------|--------|
-| **MY PR** | `author.login` matches repo owner | Review → Fix issues → Merge |
+| **MY PR** | `author.login` matches repo owner | Review → Fix P0/P1 → Merge |
 | **OTHER's PR** | Different author | Review → Post comment → Do NOT merge |
 
 List all PRs in a table:
@@ -58,8 +58,6 @@ For each local change, classify:
 | Temp/experiment files | Delete if not needed |
 | Stashed changes | Pop, resolve conflicts, commit or drop |
 
-Create branches and PRs for local changes. Each PR should have a single concern.
-
 **Gate**: All local changes committed or discarded. `git status` shows clean working tree.
 
 ## STEP 4: Review Each PR
@@ -68,35 +66,35 @@ For EACH open PR (both mine and others'), in order:
 
 ### 4a. Run `/pr-review-ccp <N>`
 
-This produces a weighted score and issue list.
+This produces a P0/P1/P2 issue list and verdict.
 
 ### 4b. Check for file conflicts with other PRs
 
 ```bash
-# Compare changed files across open PRs
 gh pr view <N> --json files
 ```
 
-### 4c. Take action based on ownership + review result
+### 4c. Take action based on ownership + verdict
 
-**MY PR with issues (CRITICAL or HIGH)**:
+**MY PR with P0s**:
 1. `git checkout <branch>`
-2. Fix all CRITICAL and HIGH issues
+2. Fix ALL P0 issues
 3. `npm run build` — must pass
 4. Commit and push fixes
-5. Re-run `/pr-review-ccp <N>` — must score ≥ 7.0/10
-6. Post final review to GitHub: `gh pr review <N> --approve --body "<review>"`
+5. Re-run `/pr-review-ccp <N>` — must have P0 = 0
+6. If P1s remain, fix those too
+7. Repeat until P0 = 0 and P1 = 0
 
-**MY PR, clean (no CRITICAL/HIGH)**:
-1. Post review to GitHub: `gh pr review <N> --approve --body "<review>"`
+**MY PR, P0 = 0 and P1 = 0**:
+1. Post review to GitHub (use `--comment` for self-PRs)
 
-**OTHER's PR with CRITICAL/HIGH issues**:
+**OTHER's PR with P0 or P1**:
 1. Post review to GitHub: `gh pr review <N> --request-changes --body "<review>"`
 2. Do NOT fix their code. Do NOT merge. Leave for the author.
 
 **OTHER's PR, clean**:
 1. Post review to GitHub: `gh pr review <N> --approve --body "<review>"`
-2. Still do NOT merge — leave for the author or ask user.
+2. Still do NOT merge unless user explicitly says to.
 
 **Gate**: Every PR has a posted GitHub review comment before proceeding.
 
@@ -113,15 +111,15 @@ Also grep for known anti-patterns:
 
 ```bash
 grep -r "process\.env\.HOME" src/ --include="*.ts"    # must be 0 results
-grep -r "console\.log(" src/ --include="*.ts"          # must be 0 (stdout = MCP)
+grep -r "console\.log(" src/ --include="*.ts"          # must be 0 in tool handlers
 ```
 
 **Gate**: All checks pass. If any fail, fix before merging.
 
 ## STEP 6: Merge (MY PRs only)
 
-Determine merge order:
-- If PRs modify the same files → merge the base one first, rebase dependent PRs
+Merge order:
+- If PRs modify the same files → merge base PR first, rebase dependent PRs
 - If no conflicts → merge in PR number order
 
 For each MY PR:
@@ -137,10 +135,7 @@ Do NOT merge OTHER's PRs unless the user explicitly says to.
 ## STEP 7: Cleanup
 
 ```bash
-# Delete merged local branches
-git branch --merged main | grep -v 'main' | xargs git branch -d
-
-# Verify final state
+git branch --merged main | grep -v 'main' | xargs -r git branch -d
 git branch -a
 gh pr list --state open
 npm run build
@@ -162,12 +157,9 @@ Skip this step entirely unless the user explicitly asks for a version bump or pu
 
 ## Completion Checklist
 
-ALL of these must be true:
-
 - [ ] Every open PR has a GitHub review comment posted
-- [ ] All MY PRs: merged or intentionally deferred
+- [ ] All MY PRs: P0 = 0, P1 = 0, merged
 - [ ] All OTHER's PRs: reviewed and commented (NOT merged)
-- [ ] All CRITICAL/HIGH issues in MY PRs: resolved
 - [ ] `npm run build` passes on main
 - [ ] No unnecessary branches remain
 - [ ] Working tree is clean

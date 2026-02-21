@@ -158,33 +158,25 @@ execSync(cmd, { encoding: 'utf8' });
    - Is the `else` case handled? (Linux and others)
    - Are all three Chrome profile paths covered?
 
-4. **Impact Assessment**:
-   - **CRITICAL**: Crashes on a supported platform
-   - **HIGH**: Feature completely broken on one platform
-   - **MEDIUM**: Degraded experience (e.g., no profile detection)
-   - **LOW**: Cosmetic differences, warnings
+4. **Classify**: Assign P0/P1/P2 to each finding:
+   - **P0**: Crashes on a supported platform, security bypass, data loss
+   - **P1**: Feature completely broken on one platform, process leak, wrong Chrome profile used
+   - **P2**: Degraded experience, cosmetic differences, warnings
+
+**Only report findings with confidence >= 60/100.**
 
 ## Output Format
 
+For each finding:
+
 ```
-### [SEVERITY] Title (Confidence: XX/100)
+### [P0/P1/P2] Title (Confidence: XX/100)
 
 **File**: `path/to/file.ts:LINE`
 **Affected Platform**: Windows | Linux | macOS
 **Pattern**: env.HOME | /dev/tty | path concat | shell command | ...
-
-**Current Code**:
-```typescript
-// platform-specific code
+**What Breaks**: Step-by-step scenario of how this causes a real problem.
+**Fix**: Concrete code change
 ```
 
-**Platforms Tested**:
-- macOS: works / breaks / untested
-- Linux: works / breaks / untested
-- Windows: works / breaks / untested
-
-**Suggested Fix**:
-```typescript
-// cross-platform code
-```
-```
+End with: `## Summary: X findings (P0: X, P1: X, P2: X)`

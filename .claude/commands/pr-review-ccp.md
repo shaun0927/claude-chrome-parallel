@@ -1,6 +1,6 @@
 ---
 name: pr-review-ccp
-description: Review PRs in claude-chrome-parallel repo with CCP-specific quality gates
+description: Review PRs in claude-chrome-parallel repo with priority-based issue classification
 ---
 
 # CCP PR Review
@@ -22,71 +22,67 @@ gh pr view <N> --json title,body,additions,deletions,files,commits,headRefName,b
 gh pr diff <N>
 ```
 
-If multiple open PRs exist, also check file overlap:
+If multiple open PRs exist, check file overlap:
 ```bash
 gh pr list --state open --json number,headRefName,files
 ```
 
 Read every changed file in full. Do NOT review from the diff alone.
 
-## STEP 2: Score on 6 Axes
+## STEP 2: Find Issues
 
-Score each axis 0-10. Compute the weighted average.
+Check the diff against these 6 areas. For EACH issue found, classify as P0/P1/P2.
 
-| # | Axis | Weight | What to Check |
-|---|------|--------|---------------|
-| 1 | Chrome/CDP Safety | 2x | Session lifecycle (attach/detach), concurrent `Target.attachToTarget` conflicts, ghost tab prevention, cookie bridging timing |
-| 2 | Cross-Platform | 1.5x | `path.join()` not concat, `os.homedir()` not `env.HOME`, platform guards for `/dev/tty`/`SingletonLock`/`SIGKILL`, Windows spawn `shell:true` |
-| 3 | Security | 2x | No `shell:true` without justification, no credentials logged, no secrets committed, safe SQLite copy under WAL |
-| 4 | Pool/Session Mgmt | 1.5x | `minPoolSize` ≤ 5, `suppressReplenishment` correctly toggled, pool cleanup on shutdown, clear error messages |
-| 5 | Architecture | 1x | Dead code removed, focused PR (single concern), TypeScript types (no untyped `any`), comments explain "why" |
-| 6 | Test/Verification | 1x | Tests for new paths, edge cases covered, verifiable without all platforms |
+| Area | What to Check |
+|------|---------------|
+| **Chrome/CDP** | Session lifecycle (attach/detach), concurrent `Target.attachToTarget`, ghost tabs, cookie bridging timing |
+| **Cross-Platform** | `path.join()` not concat, `os.homedir()` not `env.HOME`, platform guards (`/dev/tty`, `SIGKILL`, `SingletonLock`) |
+| **Security** | No unjustified `shell:true`, no credentials logged, no secrets, safe SQLite copy |
+| **Pool/Session** | `minPoolSize` ≤ 5, `suppressReplenishment` toggled, pool cleanup, clear errors |
+| **Architecture** | Dead code removed, single concern, typed (no `any`), comments explain "why" |
+| **Reliability** | Tests for new paths, error propagation, no swallowed promises, resource cleanup |
 
-**Formula**: `(A1×2 + A2×1.5 + A3×2 + A4×1.5 + A5×1 + A6×1) / 9`
+## STEP 3: Classify Each Issue
 
-- Score ≥ 7.0 → eligible for APPROVE
-- Score < 7.0 → REQUEST_CHANGES
+| Priority | Definition | Merge Gate |
+|----------|-----------|------------|
+| **P0** | **Blocker** — security hole, data loss, Chrome crash, MCP protocol corruption, silent auth bypass | **Must fix before merge** |
+| **P1** | **Must fix** — ghost tabs, session corruption, cross-platform breakage, unhandled promise crash, resource leak | **Should fix in this PR** |
+| **P2** | **Improve** — code style, docs, minor perf, unlikely edge cases | **Can be follow-up** |
 
-## STEP 3: List Issues
+Confidence threshold: only report findings with confidence ≥ 60/100.
 
-For EACH issue found, write one row:
-
-| Severity | Issue | File:Line | Confidence | Fix |
-|----------|-------|-----------|------------|-----|
-| CRITICAL/HIGH/MEDIUM/LOW | One-line description | `path:line` | XX/100 | Suggested fix |
-
-Only report findings with confidence ≥ 60/100.
-
-Severity definitions:
-- **CRITICAL**: Data loss, security hole, Chrome crash, cookie leak
-- **HIGH**: Silent failure, ghost tabs, session corruption, auth bypass
-- **MEDIUM**: Performance, unclear errors, cross-platform gap
-- **LOW**: Style, docs, minor improvement
-
-## STEP 4: Write Verdict
+## STEP 4: Write Review
 
 Use this exact format:
 
 ```
 ## PR #<N>: <title>
 
-### Scores
-| Axis | Score | Notes |
-|------|-------|-------|
-| Chrome/CDP Safety | X/10 | ... |
-| Cross-Platform | X/10 | ... |
-| Security | X/10 | ... |
-| Pool/Session Mgmt | X/10 | ... |
-| Architecture | X/10 | ... |
-| Test/Verification | X/10 | ... |
-| **Weighted Avg** | **X.X/10** | |
+### P0 — Blockers (must fix before merge)
+- [ ] **[P0]** Description — `file:line` (Confidence: XX/100)
+  - Impact: ...
+  - Fix: ...
 
-### Issues
-| Severity | Issue | File:Line | Confidence | Fix |
-|----------|-------|-----------|------------|-----|
-| ... | ... | ... | ... | ... |
+### P1 — Must Fix (should fix in this PR)
+- [ ] **[P1]** Description — `file:line` (Confidence: XX/100)
+  - Fix: ...
 
-### Verdict: APPROVE / REQUEST_CHANGES
+### P2 — Improve (can be follow-up)
+- [ ] **[P2]** Description — `file:line`
+  - Suggestion: ...
+
+### Summary
+| Priority | Count |
+|----------|-------|
+| P0 | X |
+| P1 | X |
+| P2 | X |
+
+### Verdict
+- P0 = 0, P1 = 0 → ✅ APPROVE
+- P0 = 0, P1 > 0 → ⚠️ REQUEST_CHANGES (fixable)
+- P0 > 0 → 🚫 BLOCK
 
 ### Merge Notes
 - Conflict files with other PRs (if any)
@@ -98,12 +94,17 @@ Use this exact format:
 Do NOT skip this step. Post the review on EVERY reviewed PR.
 
 ```bash
-# If ANY CRITICAL or HIGH issue exists:
+# P0 > 0:
 gh pr review <N> --request-changes --body "<Step 4 output>"
 
-# If only MEDIUM/LOW or no issues:
+# P0 = 0, P1 > 0:
+gh pr review <N> --request-changes --body "<Step 4 output>"
+
+# P0 = 0, P1 = 0:
 gh pr review <N> --approve --body "<Step 4 output>"
 ```
+
+Note: self-PRs cannot be approved via API. Use `--comment` instead of `--approve` for own PRs.
 
 ---
 
@@ -116,8 +117,10 @@ Key files:
 - `src/session-manager.ts` — Session/worker ownership, `getPage()`
 - `src/orchestration/workflow-engine.ts` — Workflow execution, `acquireBatch`
 
-Common bugs:
-1. Ghost `about:blank` tabs from pool replenishment during bulk ops
-2. "Tab not found" from session ownership mismatch
-3. Cookie bridging CDP conflicts during concurrent page creation
-4. Profile lock miss → empty temp profile → no authentication
+Common P0/P1 patterns:
+1. Ghost `about:blank` tabs from pool replenishment during bulk ops (P1)
+2. "Tab not found" from session ownership mismatch (P1)
+3. Cookie bridging CDP conflicts during concurrent page creation (P0)
+4. Profile lock miss → empty temp profile → no auth (P1)
+5. `console.log()` in tool handlers → MCP protocol corruption (P0)
+6. `process.env.HOME` → Windows breakage (P1)

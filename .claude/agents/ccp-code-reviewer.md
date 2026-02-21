@@ -81,52 +81,36 @@ For each file or change you review, apply these **6 CCP-specific axes**:
 - File system errors (permission, lock, not-found) handled
 - Puppeteer page.evaluate errors caught and reported
 
-## Confidence Scoring
+## Priority Classification
 
-For EACH finding, assign a confidence score (0-100):
+Classify EACH finding as P0, P1, or P2:
 
-| Score | Meaning | Action |
-|-------|---------|--------|
-| 90-100 | Certain bug or vulnerability | MUST report |
-| 80-89 | Very likely issue | Report with evidence |
-| 60-79 | Possible concern | Report as suggestion |
-| 40-59 | Style/preference | Report only if pattern is consistent |
-| 0-39 | Uncertain | Do NOT report |
+| Priority | Definition | Examples |
+|----------|-----------|---------|
+| **P0** | **Blocker** — must fix before merge | Security hole, data loss, Chrome crash, MCP stdout corruption, silent auth bypass |
+| **P1** | **Must fix** — should fix in this PR | Ghost tabs, session corruption, cross-platform breakage, unhandled promise crash, resource leak |
+| **P2** | **Improve** — can be follow-up | Code style, docs, minor perf, unlikely edge cases |
 
-**Only report findings with confidence >= 60.**
+**Only report findings with confidence >= 60/100.**
 
 ## Output Format
 
 For each finding:
 
 ```
-### [SEVERITY] Finding Title (Confidence: XX/100)
+### [P0/P1/P2] Finding Title (Confidence: XX/100)
 
 **File**: `path/to/file.ts:LINE`
-**Axis**: Chrome/CDP Safety | Cross-Platform | Security | Pool/Session | Architecture | Error Handling
+**Area**: Chrome/CDP | Cross-Platform | Security | Pool/Session | Architecture | Reliability
 **Impact**: What breaks if this isn't fixed
-
-**Current Code**:
-```typescript
-// problematic code
+**Fix**: Concrete code change or approach
 ```
 
-**Suggested Fix**:
-```typescript
-// fixed code
+End with a summary:
+
 ```
-
-**Rationale**: Why this matters in CCP context
+## Summary: X findings (P0: X, P1: X, P2: X)
 ```
-
-## Severity Levels
-
-| Severity | Definition |
-|----------|-----------|
-| CRITICAL | Data loss, security vulnerability, Chrome crash, cookie leak |
-| HIGH | Silent failures, ghost tabs, session corruption, auth bypass |
-| MEDIUM | Performance issues, unclear errors, cross-platform gaps |
-| LOW | Code style, documentation gaps, minor improvements |
 
 ## CCP Domain Knowledge
 

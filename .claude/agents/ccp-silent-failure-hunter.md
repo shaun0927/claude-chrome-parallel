@@ -140,37 +140,27 @@ await page.goto(url); // Throws — page never returned to pool
    - What's the caller's error handling? Does it check for null/undefined?
    - Is there a resource that needs cleanup if this fails?
 
-4. **Impact Assessment**: Rate each finding:
-   - **CRITICAL**: Silent data corruption, security bypass, process crash
-   - **HIGH**: Orphaned resources, wrong results returned to MCP client
-   - **MEDIUM**: Missing error context, hard-to-debug failures
-   - **LOW**: Inconsistent error messages, minor resource leaks
+4. **Classify**: Assign P0/P1/P2 to each finding:
+   - **P0**: Silent data corruption, security bypass, process crash, MCP stdout corruption
+   - **P1**: Orphaned resources, wrong results returned to MCP client, unhandled promise crash
+   - **P2**: Missing error context, inconsistent error messages, minor resource leaks
+
+**Only report findings with confidence >= 60/100.**
 
 ## Output Format
 
 For each silent failure found:
 
 ```
-### [SEVERITY] Title (Confidence: XX/100)
+### [P0/P1/P2] Title (Confidence: XX/100)
 
 **File**: `path/to/file.ts:LINE`
 **Category**: Empty Catch | Swallowed CDP | Unhandled Promise | Missing Propagation | State Corruption | Resource Leak
-
-**The Silent Failure**:
-```typescript
-// The problematic code
+**What Goes Wrong**: Step-by-step scenario of how this causes a real problem.
+**Fix**: Concrete code change
 ```
 
-**What Goes Wrong**:
-Step-by-step scenario of how this causes a real problem.
-
-**Evidence**: How you verified this is a real issue (caller analysis, error path tracing).
-
-**Suggested Fix**:
-```typescript
-// Fixed code with proper error handling
-```
-```
+End with: `## Summary: X findings (P0: X, P1: X, P2: X)`
 
 ## CCP-Specific Knowledge
 
